@@ -3,6 +3,8 @@
 + [python_note.md](python_note.md)里是python的笔记
 + [数模1](数模1.md) 里是算法的笔记
 
+md文件即markdown文件在web端可以直接打开，本地编译需要编译器
+
 顺便附上一份简单的说明：
 # 关于github的使用
 注册账号以后，进入仓库页面（也就是现在的页面），点击“+”-“upload files”即可上传文件。这是最简单的上传文件方式。
