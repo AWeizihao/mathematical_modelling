@@ -126,4 +126,163 @@ print(cc)
    + 21时刻，买入278.25电网电,0.0光伏电和82.75风电
    + 22时刻，买入207.14999999999998电网电,0.0光伏电和94.85000000000001风电
    + 23时刻，买入174.85电网电,0.0光伏电和116.15风电
+## 第二问
+当然可以，以下是代码背后的数学逻辑解释：
+
+### 问题描述
+
+我们希望最小化一个能源系统的总成本，该系统包括风电、光伏电、网电和储能装置。系统需要在满足每小时电量需求的同时，优化电力供应和储能的使用，以尽可能降低总成本。
+
+### 数学模型
+
+#### 参数定义
+
+- \( T \): 时间段数（24小时）
+- \( W_t \): 第 \( t \) 小时的风电发电量
+- \( P_t \): 第 \( t \) 小时的光伏发电量
+- \( D_t \): 第 \( t \) 小时的电量需求
+- \( R_c \): 储能装置的充电能力
+- \( R_d \): 储能装置的放电能力
+- \( C \): 储能装置的总容量
+- \( P_c \): 储能装置的容量成本
+- \( P_p \): 储能装置的功率成本
+- \( \text{price}_t \): 第 \( t \) 小时的电网价格（分时电价）
+
+#### 变量定义
+
+- \( E_{w,t} \): 第 \( t \) 小时使用的风电量
+- \( E_{p,t} \): 第 \( t \) 小时使用的光伏电量
+- \( E_{g,t} \): 第 \( t \) 小时使用的网电量
+- \( S_t \): 第 \( t \) 小时储能装置的电量
+- \( C_t \): 第 \( t \) 小时的充电量
+- \( D_t \): 第 \( t \) 小时的放电量
+- \( z_t \): 第 \( t \) 小时的充放电状态（1表示充电，0表示放电）
+
+#### 目标函数
+
+目标是最小化系统的总成本，包括发电成本和储能装置的成本：
+
+\[ \text{Minimize} \quad \sum_{t=0}^{T-1} (0.5 E_{w,t} + 0.4 E_{p,t} + \text{price}_t E_{g,t}) + P_c C + P_p (R_c + R_d) \]
+
+#### 约束条件
+
+1. **电量平衡约束**：
+   每个小时的电力供应必须满足需求：
+   
+   \[ E_{w,t} + E_{p,t} + E_{g,t} + D_t = D_t + C_t \quad \forall t \]
+
+2. **储能装置的动态约束**：
+   储能装置的电量随时间变化：
+   
+   \[ S_t = S_{t-1} + C_t - D_t \quad \forall t \]
+   
+   注意：第一个时间段（初始状态）的约束为：
+   
+   \[ S_0 = 0 + C_0 - D_0 \]
+
+3. **储能装置的容量约束**：
+   储能装置的电量不能超过其总容量：
+   
+   \[ 0 \leq S_t \leq C \quad \forall t \]
+
+4. **储能装置的充放电能力约束**：
+   充电和放电量不能超过其最大能力：
+   
+   \[ 0 \leq C_t \leq R_c \quad \forall t \]
+   \[ 0 \leq D_t \leq R_d \quad \forall t \]
+
+5. **充放电状态约束**：
+   充电和放电不能同时进行：
+   
+   \[ C_t \leq M z_t \]
+   \[ D_t \leq M (1 - z_t) \]
+   
+   其中 \( M \) 是一个大数，用于在二进制变量 \( z_t \) 控制下约束充放电行为。
+
+### 线性规划模型
+
+我们使用 `pulp` 库来定义和求解上述线性规划问题：
+
+1. **定义问题和变量**：
+   使用 `pulp.LpProblem` 定义优化问题，使用 `pulp.LpVariable` 定义决策变量。
+   
+2. **定义目标函数**：
+   将目标函数添加到问题中。
+   
+3. **添加约束条件**：
+   循环添加每个时间段的约束条件。
+
+4. **求解问题**：
+   使用 `problem.solve()` 求解优化问题。
+
+5. **输出结果**：
+   输出总成本和每个时间段的变量值。
+
+### 代码
+```py
+import pulp
+
+# 定义问题
+problem = pulp.LpProblem("Energy_Cost_Minimization", pulp.LpMinimize)
+
+# 参数设置
+T = 24  # 小时数
+W = [2, 1, 0, 0, 0, 0, 0, 0, 1, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 1]  # 每小时风电发电量
+P = [0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0]  # 每小时光伏发电量
+D = [4, 3, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 3, 2, 1, 2, 3, 4, 5]  # 每小时电量需求
+R_c = 10  # 充电能力
+R_d = 10  # 放电能力
+C = 100   # 储能装置总容量
+P_c = 50  # 储能装置容量成本
+P_p = 20  # 储能装置功率成本
+
+# 定义电价
+price = [1 if 7 <= t <= 22 else 0.4 for t in range(T)]  # 分时电价
+
+# 定义变量
+E_w = [pulp.LpVariable(f"E_w_{t}", lowBound=0) for t in range(T)]
+E_p = [pulp.LpVariable(f"E_p_{t}", lowBound=0) for t in range(T)]
+E_g = [pulp.LpVariable(f"E_g_{t}", lowBound=0) for t in range(T)]
+S = [pulp.LpVariable(f"S_{t}", lowBound=0, upBound=C) for t in range(T)]
+C_t = [pulp.LpVariable(f"C_{t}", lowBound=0, upBound=R_c) for t in range(T)]
+D_t = [pulp.LpVariable(f"D_{t}", lowBound=0, upBound=R_d) for t in range(T)]
+z = [pulp.LpVariable(f"z_{t}", cat='Binary') for t in range(T)]  # 二进制变量，1表示充电，0表示放电
+
+# 目标函数
+total_cost = pulp.lpSum([
+    0.5 * E_w[t] + 0.4 * E_p[t] + price[t] * E_g[t] for t in range(T)
+]) + P_c * C + P_p * R_c + P_p * R_d
+problem += total_cost
+
+# 约束条件
+for t in range(T):
+    # 电量平衡约束
+    problem += (E_w[t] + E_p[t] + E_g[t] + D_t[t] == D[t] + C_t[t])
+    
+    # 储能装置的动态约束
+    if t == 0:
+        problem += (S[t] == 0 + C_t[t] - D_t[t])  # 初始储能量为0
+    else:
+        problem += (S[t] == S[t-1] + C_t[t] - D_t[t])
+    
+    # 储能装置的充放电约束
+    M = max(R_c, R_d)
+    problem += (C_t[t] <= M * z[t])
+    problem += (D_t[t] <= M * (1 - z[t]))
+
+# 求解问题
+problem.solve()
+
+# 输出结果
+print(f"总成本: {pulp.value(problem.objective)}")
+for t in range(T):
+    print(f"Hour {t}: E_w = {pulp.value(E_w[t])}, E_p = {pulp.value(E_p[t])}, E_g = {pulp.value(E_g[t])}, "
+          f"S = {pulp.value(S[t])}, C_t = {p
+```
+
+
+
+
+
+
 
